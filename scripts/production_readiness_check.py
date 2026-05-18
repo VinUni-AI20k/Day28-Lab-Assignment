@@ -48,13 +48,25 @@ check("Redis reachable", lambda:
     redis.Redis(host="localhost", port=6379).ping())
 
 print("\n=== KAFKA ===")
-def check_kafka_topics():
+def find_kafka_container():
     result = subprocess.run(
-        ["docker", "exec", "lab28-kafka-1", "kafka-topics", "--list",
+        ["docker", "ps", "--filter", "ancestor=confluentinc/cp-kafka:7.5.0",
+         "--format", "{{.Names}}"],
+        capture_output=True, text=True
+    )
+    name = result.stdout.strip().splitlines()[0] if result.stdout.strip() else None
+    if not name:
+        raise RuntimeError("No running Kafka container found")
+    return name
+
+def check_kafka_topics():
+    container = find_kafka_container()
+    result = subprocess.run(
+        ["docker", "exec", container, "kafka-topics", "--list",
          "--bootstrap-server", "localhost:9092"],
         capture_output=True, text=True
     )
-    assert "data.raw" in result.stdout
+    assert "data.raw" in result.stdout, f"data.raw topic missing. Found: {result.stdout!r}"
 
 check("Kafka topics exist", check_kafka_topics)
 

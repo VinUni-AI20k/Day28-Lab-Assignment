@@ -1,4 +1,5 @@
-fastapi==0.104.1
-uvicorn==0.24.0
+fastapi==0.110.0
+uvicorn==0.27.0
 httpx==0.25.0
 prometheus-fastapi-instrumentator==7.0.0
+langsmith==0.1.20

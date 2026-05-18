@@ -1,0 +1,9 @@
+kafka-python==2.0.2
+redis==5.0.1
+qdrant-client==1.7.0
+requests==2.31.0
+pandas==2.1.4
+pyarrow==14.0.2
+pytest==7.4.3
+langsmith==0.0.92
+prefect==2.14.0
