@@ -24,7 +24,9 @@ services:
   # ── Prefect ───────────────────────────────────────────────
   prefect-orion:
     image: prefecthq/prefect:2.14.0-python3.10
-    command: prefect orion start --host 0.0.0.0
+    command: prefect server start --host 0.0.0.0
+    environment:
+      PREFECT_API_URL: http://0.0.0.0:4200/api
     ports:
       - "4200:4200"
     volumes:
@@ -32,13 +34,15 @@ services:
 
   prefect-worker:
     image: prefecthq/prefect:2.14.0-python3.10
-    command: prefect worker start -p docker -n lab28-worker
+    command:
+      - sh
+      - -c
+      - "prefect work-pool create --type process default-process 2>/dev/null || true; prefect worker start --pool default-process --name lab28-worker"
     environment:
       PREFECT_API_URL: http://prefect-orion:4200/api
     volumes:
       - ./prefect/flows:/opt/prefect/flows
       - ./delta-lake:/opt/delta-lake
-      - /var/run/docker.sock:/var/run/docker.sock
     depends_on: [prefect-orion, kafka]
 
   # ── Vector Store (Qdrant) ─────────────────────────────────
@@ -70,6 +74,23 @@ services:
       - "3000:3000"
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+
+  # ── Mock vLLM (local fallback, replaces Kaggle GPU vLLM) ──
+  mock-vllm:
+    build: ./mock-vllm
+    ports:
+      - "8001:8001"
+
+  # ── Embedding Service (local CPU, replaces Kaggle embed) ─
+  embed-service:
+    build: ./embed-service
+    ports:
+      - "8002:8002"
 
   # ── API Gateway ───────────────────────────────────────────
   api-gateway:
@@ -77,10 +98,13 @@ services:
     ports:
       - "8000:8000"
     environment:
-      VLLM_URL: ${VLLM_NGROK_URL}
+      VLLM_URL: ${VLLM_NGROK_URL:-http://mock-vllm:8001}
       QDRANT_URL: http://qdrant:6333
       REDIS_URL: redis://redis:6379
-    depends_on: [qdrant, redis]
+      LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY:-}
+      LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2:-true}
+      LANGCHAIN_PROJECT: ${LANGCHAIN_PROJECT:-lab28-platform}
+    depends_on: [qdrant, redis, mock-vllm]
 
 volumes:
   prefect_data:
